@@ -9,20 +9,20 @@ async function handlePdfFile(event) {
     reader.onload = async function () {
         try {
             const pdfData = new Uint8Array(reader.result);
-            const pdfDoc = await PDFLib.PDFDocument.load(pdfData);
-            const pages = pdfDoc.getPages();
+            const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
             const extractedData = [];
-            for (const page of pages) {
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
-                const text = textContent.items.map(item => item.str).join(' ');
-                extractedData.push(text);
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                extractedData.push({ Página: i, Conteúdo: pageText });
             }
 
             generateExcel(extractedData);
         } catch (error) {
             console.error('Erro ao processar o PDF:', error);
-            alert('Erro ao processar o PDF.');
+            alert('Erro ao processar o PDF. Verifique o arquivo e tente novamente.');
         }
     };
 
@@ -30,9 +30,7 @@ async function handlePdfFile(event) {
 }
 
 function generateExcel(data) {
-    const ws = XLSX.utils.json_to_sheet(
-        data.map((text, index) => ({ Página: index + 1, Conteúdo: text }))
-    );
+    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'PDF_Data');
 
