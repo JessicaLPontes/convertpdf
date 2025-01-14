@@ -11,17 +11,18 @@ async function handlePdfFile(event) {
             const pdfData = new Uint8Array(reader.result);
             const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
-            const extractedData = [];
+            const allRows = [];
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
 
-                // Reestruturando para linhas lógicas
+                // Processar linhas com separação por delimitadores
                 const pageLines = groupTextByLine(textContent.items);
-                extractedData.push(...pageLines.map(line => ({ Página: i, Linha: line })));
+                const parsedRows = pageLines.map(line => parseLineToColumns(line));
+                allRows.push(...parsedRows);
             }
 
-            generateExcel(extractedData);
+            generateExcel(allRows);
         } catch (error) {
             console.error('Erro ao processar o PDF:', error);
             alert('Erro ao processar o PDF. Verifique o arquivo e tente novamente.');
@@ -54,8 +55,19 @@ function groupTextByLine(items) {
     return lines;
 }
 
+function parseLineToColumns(line) {
+    // Dividir linha por separadores comuns (tabulação, vírgula ou espaço múltiplo)
+    const columns = line.split(/[\t,]+|\s{2,}/).map(col => col.trim());
+    return columns;
+}
+
 function generateExcel(data) {
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Gerar cabeçalhos com base no número máximo de colunas
+    const maxColumns = Math.max(...data.map(row => row.length));
+    const headers = Array.from({ length: maxColumns }, (_, i) => `Coluna ${i + 1}`);
+
+    const worksheetData = [headers, ...data];
+    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'PDF_Data');
 
@@ -68,7 +80,7 @@ function generateExcel(data) {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'PDF_to_Excel_Ordenado.xlsx';
+    link.download = 'PDF_to_Excel_Colunas.xlsx';
     link.textContent = 'Baixar Excel';
     link.classList.add('sql-link');
 
