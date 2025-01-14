@@ -15,8 +15,10 @@ async function handlePdfFile(event) {
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(' ');
-                extractedData.push({ Página: i, Conteúdo: pageText });
+
+                // Reestruturando para linhas lógicas
+                const pageLines = groupTextByLine(textContent.items);
+                extractedData.push(...pageLines.map(line => ({ Página: i, Linha: line })));
             }
 
             generateExcel(extractedData);
@@ -27,6 +29,29 @@ async function handlePdfFile(event) {
     };
 
     reader.readAsArrayBuffer(file);
+}
+
+function groupTextByLine(items) {
+    const lines = [];
+    let currentLine = [];
+    let lastY = null;
+
+    items.forEach(item => {
+        const currentY = Math.round(item.transform[5]); // Posição Y arredondada
+        if (lastY !== null && Math.abs(currentY - lastY) > 5) {
+            // Linha nova detectada
+            lines.push(currentLine.join(' '));
+            currentLine = [];
+        }
+        currentLine.push(item.str);
+        lastY = currentY;
+    });
+
+    if (currentLine.length > 0) {
+        lines.push(currentLine.join(' ')); // Adiciona a última linha
+    }
+
+    return lines;
 }
 
 function generateExcel(data) {
@@ -43,7 +68,7 @@ function generateExcel(data) {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'PDF_to_Excel.xlsx';
+    link.download = 'PDF_to_Excel_Ordenado.xlsx';
     link.textContent = 'Baixar Excel';
     link.classList.add('sql-link');
 
