@@ -11,18 +11,17 @@ async function handlePdfFile(event) {
             const pdfData = new Uint8Array(reader.result);
             const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
-            const allRows = [];
+            const extractedData = [];
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
 
-                // Processar linhas com separação por delimitadores
-                const pageLines = groupTextByLine(textContent.items);
-                const parsedRows = pageLines.map(line => parseLineToColumns(line));
-                allRows.push(...parsedRows);
+                // Processar o texto em formato tabular
+                const pageRows = processPageText(textContent.items);
+                extractedData.push(...pageRows);
             }
 
-            generateExcel(allRows);
+            generateExcel(extractedData);
         } catch (error) {
             console.error('Erro ao processar o PDF:', error);
             alert('Erro ao processar o PDF. Verifique o arquivo e tente novamente.');
@@ -32,40 +31,38 @@ async function handlePdfFile(event) {
     reader.readAsArrayBuffer(file);
 }
 
-function groupTextByLine(items) {
-    const lines = [];
-    let currentLine = [];
-    let lastY = null;
+function processPageText(items) {
+    const rows = [];
+    const columnsByY = {};
 
+    // Agrupar itens pela posição Y
     items.forEach(item => {
-        const currentY = Math.round(item.transform[5]); // Posição Y arredondada
-        if (lastY !== null && Math.abs(currentY - lastY) > 5) {
-            // Linha nova detectada
-            lines.push(currentLine.join(' '));
-            currentLine = [];
+        const currentY = Math.round(item.transform[5]); // Posição Y
+        const currentX = Math.round(item.transform[4]); // Posição X
+
+        if (!columnsByY[currentY]) {
+            columnsByY[currentY] = [];
         }
-        currentLine.push(item.str);
-        lastY = currentY;
+
+        columnsByY[currentY].push({ x: currentX, text: item.str });
     });
 
-    if (currentLine.length > 0) {
-        lines.push(currentLine.join(' ')); // Adiciona a última linha
-    }
+    // Processar linhas agrupadas
+    Object.keys(columnsByY).sort((a, b) => b - a).forEach(y => {
+        const row = columnsByY[y]
+            .sort((a, b) => a.x - b.x) // Ordenar por posição X
+            .map(item => item.text.trim());
+        rows.push(row);
+    });
 
-    return lines;
-}
-
-function parseLineToColumns(line) {
-    // Dividir linha por separadores comuns (tabulação, vírgula ou espaço múltiplo)
-    const columns = line.split(/[\t,]+|\s{2,}/).map(col => col.trim());
-    return columns;
+    return rows.filter(row => row.length > 1); // Remover linhas vazias
 }
 
 function generateExcel(data) {
-    // Gerar cabeçalhos com base no número máximo de colunas
-    const maxColumns = Math.max(...data.map(row => row.length));
-    const headers = Array.from({ length: maxColumns }, (_, i) => `Coluna ${i + 1}`);
+    // Detecção dinâmica de cabeçalhos
+    const headers = detectHeaders(data);
 
+    // Adicionar cabeçalhos ao início dos dados
     const worksheetData = [headers, ...data];
     const ws = XLSX.utils.aoa_to_sheet(worksheetData);
     const wb = XLSX.utils.book_new();
@@ -80,11 +77,16 @@ function generateExcel(data) {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'PDF_to_Excel_Colunas.xlsx';
+    link.download = 'PDF_to_Excel_Adaptável.xlsx';
     link.textContent = 'Baixar Excel';
     link.classList.add('sql-link');
 
     linkContainer.appendChild(link);
+}
+
+function detectHeaders(data) {
+    const maxColumns = Math.max(...data.map(row => row.length));
+    return Array.from({ length: maxColumns }, (_, i) => `Coluna ${i + 1}`);
 }
 
 function clearFiles() {
