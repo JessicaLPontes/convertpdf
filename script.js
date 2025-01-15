@@ -16,7 +16,7 @@ async function handlePdfFile(event) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
 
-                // Processar texto e filtrar títulos
+                // Processar texto e remover títulos fixos
                 const pageRows = processPageText(textContent.items);
                 extractedData.push(...pageRows);
             }
@@ -55,30 +55,22 @@ function processPageText(items) {
         rows.push(row);
     });
 
-    // Filtrar linhas que sejam títulos ou irrelevantes
-    return rows
-        .filter(row => isDataRow(row)) // Apenas linhas com dados relevantes
-        .map(row => row.filter(cell => cell !== '')); // Remover células vazias
+    // Filtrar e remover apenas cabeçalhos fixos (mantendo os dados)
+    return rows.filter(row => !isFixedHeader(row));
 }
 
-function isDataRow(row) {
-    // Palavras-chave que indicam títulos (excluir essas linhas)
-    const titleKeywords = ['Código', 'Descrição', 'Preço', 'Desativado', 'Delivery', 'Balcão', 'Aliquota', 'Serviço'];
+function isFixedHeader(row) {
+    // Lista de palavras-chave que aparecem nos cabeçalhos fixos
+    const fixedHeader = ['Código', 'Descrição', 'Preço Delivery', 'Preço Balcão', 'Desativado'];
 
-    // Verificar se a linha contém alguma palavra-chave
-    if (row.some(cell => titleKeywords.includes(cell))) {
-        return false;
-    }
-
-    // Verificar se a linha tem dados suficientes (número mínimo de colunas)
-    return row.length > 3; // Ajuste conforme necessário
+    // Verificar se a linha contém todas as palavras-chave do cabeçalho fixo
+    return fixedHeader.every(keyword => row.includes(keyword));
 }
 
 function generateExcel(data) {
-    // Adicionar cabeçalhos dinâmicos (caso necessário)
+    // Detectar dinamicamente o número de colunas e criar cabeçalhos
     const headers = detectHeaders(data);
 
-    // Adicionar cabeçalhos ao início dos dados
     const worksheetData = [headers, ...data];
     const ws = XLSX.utils.aoa_to_sheet(worksheetData);
     const wb = XLSX.utils.book_new();
@@ -93,7 +85,7 @@ function generateExcel(data) {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'PDF_to_Excel_Somente_Dados.xlsx';
+    link.download = 'PDF_to_Excel_Sem_Titulos.xlsx';
     link.textContent = 'Baixar Excel';
     link.classList.add('sql-link');
 
