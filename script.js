@@ -16,7 +16,7 @@ async function handlePdfFile(event) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
 
-                // Processar texto e remover títulos fixos
+                // Processar texto e remover cabeçalhos fixos
                 const pageRows = processPageText(textContent.items);
                 extractedData.push(...pageRows);
             }
@@ -55,7 +55,7 @@ function processPageText(items) {
         rows.push(row);
     });
 
-    // Filtrar e remover apenas cabeçalhos fixos (mantendo os dados)
+    // Filtrar e remover apenas cabeçalhos fixos
     return rows.filter(row => !isFixedHeader(row));
 }
 
@@ -63,14 +63,16 @@ function isFixedHeader(row) {
     // Lista de palavras-chave que aparecem nos cabeçalhos fixos
     const fixedHeader = ['Código', 'Descrição', 'Preço Delivery', 'Preço Balcão', 'Desativado'];
 
-    // Verificar se a linha contém todas as palavras-chave do cabeçalho fixo
+    // Verificar se a linha é exatamente igual a um título fixo
     return fixedHeader.every(keyword => row.includes(keyword));
 }
 
 function generateExcel(data) {
-    // Detectar dinamicamente o número de colunas e criar cabeçalhos
-    const headers = detectHeaders(data);
+    // Ajustar as colunas com base nos dados detectados
+    const maxColumns = Math.max(...data.map(row => row.length));
+    const headers = detectHeaders(maxColumns);
 
+    // Organizar dados em colunas fixas
     const worksheetData = [headers, ...data];
     const ws = XLSX.utils.aoa_to_sheet(worksheetData);
     const wb = XLSX.utils.book_new();
@@ -85,15 +87,15 @@ function generateExcel(data) {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'PDF_to_Excel_Sem_Titulos.xlsx';
+    link.download = 'PDF_to_Excel_Organizado.xlsx';
     link.textContent = 'Baixar Excel';
     link.classList.add('sql-link');
 
     linkContainer.appendChild(link);
 }
 
-function detectHeaders(data) {
-    const maxColumns = Math.max(...data.map(row => row.length));
+function detectHeaders(maxColumns) {
+    // Criar cabeçalhos baseados no número de colunas detectado
     return Array.from({ length: maxColumns }, (_, i) => `Coluna ${i + 1}`);
 }
 
