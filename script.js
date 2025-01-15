@@ -16,7 +16,7 @@ async function handlePdfFile(event) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
 
-                // Processar o texto em formato tabular
+                // Processar texto e filtrar títulos
                 const pageRows = processPageText(textContent.items);
                 extractedData.push(...pageRows);
             }
@@ -55,11 +55,27 @@ function processPageText(items) {
         rows.push(row);
     });
 
-    return rows.filter(row => row.length > 1); // Remover linhas vazias
+    // Filtrar linhas que sejam títulos ou irrelevantes
+    return rows
+        .filter(row => isDataRow(row)) // Apenas linhas com dados relevantes
+        .map(row => row.filter(cell => cell !== '')); // Remover células vazias
+}
+
+function isDataRow(row) {
+    // Palavras-chave que indicam títulos (excluir essas linhas)
+    const titleKeywords = ['Código', 'Descrição', 'Preço', 'Desativado', 'Delivery', 'Balcão', 'Aliquota', 'Serviço'];
+
+    // Verificar se a linha contém alguma palavra-chave
+    if (row.some(cell => titleKeywords.includes(cell))) {
+        return false;
+    }
+
+    // Verificar se a linha tem dados suficientes (número mínimo de colunas)
+    return row.length > 3; // Ajuste conforme necessário
 }
 
 function generateExcel(data) {
-    // Detecção dinâmica de cabeçalhos
+    // Adicionar cabeçalhos dinâmicos (caso necessário)
     const headers = detectHeaders(data);
 
     // Adicionar cabeçalhos ao início dos dados
@@ -77,7 +93,7 @@ function generateExcel(data) {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'PDF_to_Excel_Adaptável.xlsx';
+    link.download = 'PDF_to_Excel_Somente_Dados.xlsx';
     link.textContent = 'Baixar Excel';
     link.classList.add('sql-link');
 
